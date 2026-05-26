@@ -1,0 +1,60 @@
+name: CI Pipeline (112062205)
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Code Quality & Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prettier Format Check
+        run: npm run format:check
+
+      - name: TypeScript Typecheck
+        run: npm run typecheck
+
+      - name: Run unit tests with JUnit reporter
+        run: |
+          mkdir -p reports
+          npm test -- --reporter=default --reporter=junit --outputFile.junit=reports/vitest-junit.xml
+
+      - name: Upload test report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: reports/
+          if-no-files-found: error
+
+      - name: Publish Test Results in GitHub Actions
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: '**/reports/vitest-junit.xml'
+          detailed_summary: true
+          include_passed: true
